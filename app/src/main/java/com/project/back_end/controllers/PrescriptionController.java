@@ -1,33 +1,16 @@
 package com.project.back_end.controllers;
-
+import com.project.back_end.models.Prescription;
+import com.project.back_end.repo.*;
+import com.project.back_end.services.TokenService;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
+import jakarta.validation.Valid;
+import java.util.*;
+@RestController @RequestMapping("/prescriptions")
 public class PrescriptionController {
-    
-// 1. Set Up the Controller Class:
-//    - Annotate the class with `@RestController` to define it as a REST API controller.
-//    - Use `@RequestMapping("${api.path}prescription")` to set the base path for all prescription-related endpoints.
-//    - This controller manages creating and retrieving prescriptions tied to appointments.
-
-
-// 2. Autowire Dependencies:
-//    - Inject `PrescriptionService` to handle logic related to saving and fetching prescriptions.
-//    - Inject the shared `Service` class for token validation and role-based access control.
-//    - Inject `AppointmentService` to update appointment status after a prescription is issued.
-
-
-// 3. Define the `savePrescription` Method:
-//    - Handles HTTP POST requests to save a new prescription for a given appointment.
-//    - Accepts a validated `Prescription` object in the request body and a doctor’s token as a path variable.
-//    - Validates the token for the `"doctor"` role.
-//    - If the token is valid, updates the status of the corresponding appointment to reflect that a prescription has been added.
-//    - Delegates the saving logic to `PrescriptionService` and returns a response indicating success or failure.
-
-
-// 4. Define the `getPrescription` Method:
-//    - Handles HTTP GET requests to retrieve a prescription by its associated appointment ID.
-//    - Accepts the appointment ID and a doctor’s token as path variables.
-//    - Validates the token for the `"doctor"` role using the shared service.
-//    - If the token is valid, fetches the prescription using the `PrescriptionService`.
-//    - Returns the prescription details or an appropriate error message if validation fails.
-
-
+ private final PrescriptionRepository prescriptions;private final AppointmentRepository appointments;private final TokenService tokens;
+ public PrescriptionController(PrescriptionRepository prescriptions,AppointmentRepository appointments,TokenService tokens){this.prescriptions=prescriptions;this.appointments=appointments;this.tokens=tokens;}
+ @PostMapping public Prescription save(@RequestHeader(value="Authorization",required=false) String token,@Valid @RequestBody Prescription data){Long doctor=tokens.identity(token,"doctor");var appointment=appointments.findById(data.appointmentId).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND));if(!appointment.getDoctor().getId().equals(doctor))throw new ResponseStatusException(HttpStatus.FORBIDDEN);data.id=null;data.doctorId=doctor;data.patientId=appointment.getPatient().getId();return prescriptions.save(data);}
+ @GetMapping("/{appointmentId}") public List<Prescription> read(@PathVariable Long appointmentId,@RequestHeader(value="Authorization",required=false) String token){var claims=tokens.validateToken(token,"patient","doctor");Long id=Long.valueOf(claims.getSubject());var appointment=appointments.findById(appointmentId).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND));boolean allowed="doctor".equals(claims.get("role"))?appointment.getDoctor().getId().equals(id):appointment.getPatient().getId().equals(id);if(!allowed)throw new ResponseStatusException(HttpStatus.FORBIDDEN);return prescriptions.findByAppointmentId(appointmentId);}
 }

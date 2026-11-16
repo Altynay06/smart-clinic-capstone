@@ -1,0 +1,40 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: cms
+      MYSQL_USER: clinic
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./SQL/procedures.sql:/docker-entrypoint-initdb.d/procedures.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+  mongo:
+    image: mongo:7.0
+    volumes:
+      - mongo-data:/data/db
+  clinic:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/cms?allowPublicKeyRetrieval=true&useSSL=false
+      DB_USER: clinic
+      DB_PASSWORD: ${DB_PASSWORD}
+      MONGO_URI: mongodb://mongo:27017/clinic_prescriptions
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      APP_SEED: "true"
+      DEMO_PASSWORD: ${DEMO_PASSWORD:?Set DEMO_PASSWORD}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+volumes:
+  mysql-data:
+  mongo-data:
